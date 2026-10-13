@@ -2,43 +2,82 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# Judul Aplikasi Web
+# Konfigurasi Halaman Web
 st.set_page_config(page_title="Pantau Saham Emiten", page_icon="📈", layout="centered")
 
 st.title("📈 Aplikasi Pemantau Emiten Saham")
 st.write("Pantau pergerakan harga saham emiten pilihan Anda secara langsung.")
 
-# Kolom Input untuk Kode Saham
-# Contoh: BBCA.JK untuk Bank Central Asia, TLKM.JK untuk Telkom Indonesia
+# --- FITUR WATCHLIST (DAFTAR PANTAU) ---
+st.subheader("📋 Daftar Pantau (Watchlist)")
+st.write("Daftar emiten pilihan yang dipantau secara berkala:")
+
+# Daftar default saham bursa Indonesia (Anda bisa menambah atau mengubahnya nanti)
+default_watchlist = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "MBMA.JK", "POLA.JK", "ESTI.JK"]
+
+# Input teks untuk menambah/mengubah daftar watchlist dengan mudah lewat HP
+watchlist_input = st.text_area(
+    "Edit Daftar Saham (pisahkan dengan koma):", 
+    value=", ".join(default_watchlist),
+    help="Contoh: BBCA.JK, BBRI.JK, MBMA.JK"
+)
+
+# Memproses daftar saham dari input pengguna
+watchlist = [s.strip().upper() for s in watchlist_input.split(",") if s.strip()]
+
+if watchlist:
+    watchlist_data = []
+    for ticker in watchlist:
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period="5d") # Ambil data 5 hari terakhir untuk hitung perubahan
+            if not hist.empty:
+                latest_price = hist['Close'].iloc[-1]
+                prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else latest_price
+                change = latest_price - prev_price
+                pct_change = (change / prev_price) * 100 if prev_price != 0 else 0
+                
+                watchlist_data.append({
+                    "Kode Saham": ticker,
+                    "Harga Terakhir (Rp)": round(latest_price, 2),
+                    "Perubahan": round(change, 2),
+                    "Perubahan (%)": round(pct_change, 2)
+                })
+        except Exception:
+            continue
+    
+    if watchlist_data:
+        df_watchlist = pd.DataFrame(watchlist_data)
+        
+        # Fungsi pewarnaan sederhana atau tampilkan tabel interaktif
+        st.dataframe(df_watchlist, use_container_width=True)
+    else:
+        st.warning("⚠️ Tidak dapat memuat data untuk daftar saham tersebut.")
+
+st.divider()
+
+# --- BAGIAN DETAIL SAHAM & GRAFIK ---
+st.subheader("🔍 Detail & Grafik Pergerakan Saham")
 default_ticker = "BBCA.JK"
-ticker_symbol = st.text_input("Masukkan Kode Saham (contoh: BBCA.JK, TLKM.JK, ASII.JK):", value=default_ticker)
+ticker_symbol = st.text_input("Masukkan Kode Saham untuk melihat grafik detail:", value=default_ticker)
 
 if ticker_symbol:
     try:
-        # Mengambil data saham dari Yahoo Finance
         stock = yf.Ticker(ticker_symbol.strip().upper())
-        hist = stock.history(period="1mo") # Data historis 1 bulan terakhir
+        hist = stock.history(period="1mo")
         
         if not hist.empty:
-            # Mengambil data harga terbaru
             latest_price = hist['Close'].iloc[-1]
             prev_price = hist['Close'].iloc[-2]
             price_change = latest_price - prev_price
             percent_change = (price_change / prev_price) * 100
             
-            # Menampilkan Metrik Utama
-            st.subheader(f"Informasi Saham: {ticker_symbol.upper()}")
             col1, col2 = st.columns(2)
             col1.metric("Harga Terakhir", f"Rp {latest_price:,.2f}", f"{price_change:+,.2f} ({percent_change:+.2f}%)")
             
-            # Grafik Pergerakan Harga 1 Bulan
-            st.write("### Grafik Harga (1 Bulan Terakhir)")
+            st.write(f"### Grafik Harga 1 Bulan: {ticker_symbol.upper()}")
             st.line_chart(hist['Close'])
-            
-            # Tabel Data Historis Singkat
-            st.write("### Data Historis Terbaru")
-            st.dataframe(hist[['Open', 'High', 'Low', 'Close', 'Volume']].tail(5))
         else:
-            st.warning("⚠️ Data untuk kode saham tersebut tidak ditemukan. Pastikan format penulisan benar (misal: BBCA.JK untuk saham bursa Indonesia).")
+            st.warning("⚠️ Data untuk kode saham tersebut tidak ditemukan.")
     except Exception as e:
-        st.error(f"Terjadi kesalahan saat mengambil data: {e}")
+        st.error(f"Terjadi kesalahan: {e}")
