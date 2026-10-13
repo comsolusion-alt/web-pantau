@@ -8,55 +8,7 @@ st.set_page_config(page_title="Pantau Saham Emiten", page_icon="📈", layout="c
 st.title("📈 Aplikasi Pemantau Emiten Saham")
 st.write("Pantau pergerakan harga saham emiten pilihan Anda secara langsung.")
 
-# --- FITUR WATCHLIST (DAFTAR PANTAU) ---
-st.subheader("📋 Daftar Pantau (Watchlist)")
-st.write("Daftar emiten pilihan yang dipantau secara berkala:")
-
-# Daftar default saham bursa Indonesia (Anda bisa menambah atau mengubahnya nanti)
-default_watchlist = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "MBMA.JK", "POLA.JK", "ESTI.JK"]
-
-# Input teks untuk menambah/mengubah daftar watchlist dengan mudah lewat HP
-watchlist_input = st.text_area(
-    "Edit Daftar Saham (pisahkan dengan koma):", 
-    value=", ".join(default_watchlist),
-    help="Contoh: BBCA.JK, BBRI.JK, MBMA.JK"
-)
-
-# Memproses daftar saham dari input pengguna
-watchlist = [s.strip().upper() for s in watchlist_input.split(",") if s.strip()]
-
-if watchlist:
-    watchlist_data = []
-    for ticker in watchlist:
-        try:
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period="5d") # Ambil data 5 hari terakhir untuk hitung perubahan
-            if not hist.empty:
-                latest_price = hist['Close'].iloc[-1]
-                prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else latest_price
-                change = latest_price - prev_price
-                pct_change = (change / prev_price) * 100 if prev_price != 0 else 0
-                
-                watchlist_data.append({
-                    "Kode Saham": ticker,
-                    "Harga Terakhir (Rp)": round(latest_price, 2),
-                    "Perubahan": round(change, 2),
-                    "Perubahan (%)": round(pct_change, 2)
-                })
-        except Exception:
-            continue
-    
-    if watchlist_data:
-        df_watchlist = pd.DataFrame(watchlist_data)
-        
-        # Fungsi pewarnaan sederhana atau tampilkan tabel interaktif
-        st.dataframe(df_watchlist, use_container_width=True)
-    else:
-        st.warning("⚠️ Tidak dapat memuat data untuk daftar saham tersebut.")
-
-st.divider()
-
-# --- BAGIAN DETAIL SAHAM & GRAFIK ---
+# --- BAGIAN 1: DETAIL SAHAM & GRAFIK (DI ATAS) ---
 st.subheader("🔍 Detail & Grafik Pergerakan Saham")
 default_ticker = "BBCA.JK"
 ticker_symbol = st.text_input("Masukkan Kode Saham untuk melihat grafik detail:", value=default_ticker)
@@ -81,3 +33,47 @@ if ticker_symbol:
             st.warning("⚠️ Data untuk kode saham tersebut tidak ditemukan.")
     except Exception as e:
         st.error(f"Terjadi kesalahan: {e}")
+
+st.divider()
+
+# --- BAGIAN 2: FITUR WATCHLIST / DAFTAR PANTAU (DI BAWAH) ---
+st.subheader("📋 Daftar Pantau (Watchlist)")
+st.write("Daftar emiten pilihan yang dipantau secara berkala:")
+
+# Daftar default saham bursa Indonesia
+default_watchlist = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "MBMA.JK", "POLA.JK", "ESTI.JK"]
+
+watchlist_input = st.text_area(
+    "Edit Daftar Saham (pisahkan dengan koma):", 
+    value=", ".join(default_watchlist),
+    help="Contoh: BBCA.JK, BBRI.JK, MBMA.JK"
+)
+
+watchlist = [s.strip().upper() for s in watchlist_input.split(",") if s.strip()]
+
+if watchlist:
+    watchlist_data = []
+    for ticker in watchlist:
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period="5d")
+            if not hist.empty:
+                latest_price = hist['Close'].iloc[-1]
+                prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else latest_price
+                change = latest_price - prev_price
+                pct_change = (change / prev_price) * 100 if prev_price != 0 else 0
+                
+                watchlist_data.append({
+                    "Kode Saham": ticker,
+                    "Harga Terakhir (Rp)": round(latest_price, 2),
+                    "Perubahan": round(change, 2),
+                    "Perubahan (%)": round(pct_change, 2)
+                })
+        except Exception:
+            continue
+    
+    if watchlist_data:
+        df_watchlist = pd.DataFrame(watchlist_data)
+        st.dataframe(df_watchlist, use_container_width=True)
+    else:
+        st.warning("⚠️ Tidak dapat memuat data untuk daftar saham tersebut.")
