@@ -74,6 +74,8 @@ if watchlist:
     
     if watchlist_data:
         df_watchlist = pd.DataFrame(watchlist_data)
-        st.dataframe(df_watchlist, use_container_width=True)
+        # Menambahkan nomor urut otomatis mulai dari 1 dan menyembunyikan indeks default
+        df_watchlist.insert(0, "No", range(1, len(df_watchlist) + 1))
+        st.dataframe(df_watchlist, use_container_width=True, hide_index=True)
     else:
         st.warning("⚠️ Tidak dapat memuat data untuk daftar saham tersebut.")
