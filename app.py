@@ -8,30 +8,51 @@ st.set_page_config(page_title="Pantau Saham Emiten", page_icon="📈", layout="c
 st.title("📈 Aplikasi Pemantau Emiten Saham")
 st.write("Pantau pergerakan harga saham emiten pilihan Anda secara langsung.")
 
-# --- BAGIAN 1: DETAIL SAHAM, GRAFIK & REKOMENDASI (DI ATAS) ---
-st.subheader("🔍 Detail, Grafik & Analisis Saham")
+# --- BAGIAN 1: DETAIL SAHAM & GRAFIK (DENGAN REKOMENDASI DI DALAMNYA) ---
+st.subheader("🔍 Detail & Grafik Pergerakan Saham")
 default_ticker = "BBCA.JK"
-ticker_symbol = st.text_input("Masukkan Kode Saham untuk melihat grafik detail:", value=default_ticker)
-
-# Pilihan rentang waktu untuk grafik
-time_period = st.selectbox(
-    "Pilih Rentang Waktu Grafik:",
-    options=["1mo", "6mo", "1y", "3y", "5y", "max"],
-    format_func=lambda x: {
-        "1mo": "1 Bulan",
-        "6mo": "6 Bulan",
-        "1y": "1 Tahun",
-        "3y": "3 Tahun",
-        "5y": "5 Tahun",
-        "max": "Maksimum / Semua Data"
-    }[x],
-    index=2
-)
+ticker_symbol = st.text_input("Masukkan Kode Saham:", value=default_ticker)
 
 if ticker_symbol:
     try:
         stock = yf.Ticker(ticker_symbol.strip().upper())
-        hist = stock.history(period=time_period)
+        
+        # --- PILIHAN RENTANG WAKTU DI BAWAH GRAFIK / SETELAH INPUT SAHAM ---
+        # Kita sediakan opsi lengkap termasuk detik/menit (intraday) dan jangka panjang
+        time_option = st.selectbox(
+            "Pilih Rentang Waktu Grafik:",
+            options=["1m", "2m", "5m", "15m", "30m", "1h", "1d", "5d", "1mo", "6mo", "1y", "3y", "5y", "max"],
+            format_func=lambda x: {
+                "1m": "1 Menit (Intraday - 7 hari terakhir)",
+                "2m": "2 Menit (Intraday)",
+                "5m": "5 Menit (Intraday)",
+                "15m": "15 Menit (Intraday)",
+                "30m": "30 Menit (Intraday)",
+                "1h": "1 Jam (Intraday)",
+                "1d": "1 Hari",
+                "5d": "5 Hari",
+                "1mo": "1 Bulan",
+                "6mo": "6 Bulan",
+                "1y": "1 Tahun",
+                "3y": "3 Tahun",
+                "5y": "5 Tahun",
+                "max": "Maksimum / Semua Data"
+            }[x],
+            index=10 # Default ke 1 Tahun
+        )
+
+        # Menyesuaikan interval otomatis berdasarkan pilihan waktu agar grafik akurat
+        interval_map = {
+            "1m": "1m", "2m": "2m", "5m": "5m", "15m": "15m", 
+            "30m": "30m", "1h": "60m", "1d": "1d", "5d": "1d", 
+            "1mo": "1d", "6mo": "1wk", "1y": "1wk", "3y": "1mo", 
+            "5y": "1mo", "max": "3mo"
+        }
+        
+        selected_interval = interval_map.get(time_option, "1d")
+
+        # Mengambil data historis dengan rentang dan interval yang dipilih
+        hist = stock.history(period=time_option, interval=selected_interval)
         
         if not hist.empty:
             latest_price = hist['Close'].iloc[-1]
@@ -42,47 +63,45 @@ if ticker_symbol:
             col1, col2 = st.columns(2)
             col1.metric("Harga Terakhir", f"Rp {latest_price:,.2f}", f"{price_change:+,.2f} ({percent_change:+.2f}%)")
             
-            st.write(f"### Grafik Harga ({time_period.upper()}): {ticker_symbol.upper()}")
+            # Tampilkan Grafik
             st.line_chart(hist['Close'])
             
-            # --- FITUR REKOMENDASI OTOMATIS (BUY / SELL / HOLD) ---
-            st.write("### 🤖 Indikator & Rekomendasi Otomatis")
+            # --- KOTAK REKOMENDASI BUY / SELL (MENYATU DI BAWAH GRAFIK) ---
+            st.markdown("### 🤖 Analisis & Rekomendasi Sinyal")
             
-            # Menghitung Moving Average 20 hari dan 50 hari untuk sinyal tren
-            if len(hist) >= 50:
-                hist['MA20'] = hist['Close'].rolling(window=20).mean()
-                hist['MA50'] = hist['Close'].rolling(window=50).mean()
+            if len(hist) >= 20:
+                hist['MA20'] = hist['Close'].rolling(window=min(20, len(hist))).mean()
+                hist['MA50'] = hist['Close'].rolling(window=min(50, len(hist))).mean()
                 
                 ma20_latest = hist['MA20'].iloc[-1]
                 ma50_latest = hist['MA50'].iloc[-1]
                 
-                # Logika Sinyal Sederhana Berdasarkan Tren MA & Posisi Harga
                 signal = "HOLD"
                 signal_color = "orange"
-                reason = "Harga bergerak sideways atau dalam fase konsolidasi."
+                reason = "Pergerakan harga terkonsolidasi (sideways)."
                 
-                if latest_price > ma20_latest and ma20_latest > ma50_latest:
+                if latest_price > ma20_latest and ma20_latest >= ma50_latest:
                     signal = "STRONG BUY / BUY"
                     signal_color = "green"
-                    reason = "Tren Bullish: Harga berada di atas rata-rata pergerakan 20 dan 50 hari."
-                elif latest_price < ma20_latest and ma20_latest < ma50_latest:
+                    reason = "Tren Bullish: Harga berada di atas indikator rata-rata pergerakan."
+                elif latest_price < ma20_latest and ma20_latest <= ma50_latest:
                     signal = "STRONG SELL / SELL"
                     signal_color = "red"
-                    reason = "Tren Bearish: Harga berada di bawah rata-rata pergerakan 20 dan 50 hari."
+                    reason = "Tren Bearish: Harga berada di bawah indikator rata-rata pergerakan."
                 
-                st.markdown(f"**Rekomendasi Teknis:** <span style='color:{signal_color}; font-size:20px; font-weight:bold;'>{signal}</span>", unsafe_allow_html=True)
-                st.info(f"💡 **Analisis:** {reason} (MA20: Rp {ma20_latest:,.2f} | MA50: Rp {ma50_latest:,.2f})")
+                st.markdown(f"**Rekomendasi:** <span style='color:{signal_color}; font-size:20px; font-weight:bold;'>{signal}</span>", unsafe_allow_html=True)
+                st.info(f"💡 **Keterangan:** {reason}")
             else:
-                st.warning("⚠️ Data historis kurang dari 50 hari untuk menghitung indikator rekomendasi secara akurat.")
+                st.warning("⚠️ Data belum cukup untuk kalkulasi indikator tren.")
                 
         else:
-            st.warning("⚠️ Data untuk kode saham tersebut tidak ditemukan.")
+            st.warning("⚠️ Data untuk rentang waktu atau kode saham tersebut tidak tersedia.")
     except Exception as e:
-        st.error(f"Terjadi kesalahan: {e}")
+        st.error(f"Terjadi kesalahan saat memproses data: {e}")
 
 st.divider()
 
-# --- BAGIAN 2: FITUR WATCHLIST / DAFTAR PANTAU (DI BAWAH) ---
+# --- BAGIAN 2: DAFTAR PANTAU (WATCHLIST) DI BAWAH ---
 st.subheader("📋 Daftar Pantau (Watchlist)")
 st.write("Daftar emiten pilihan yang dipantau secara berkala:")
 
@@ -90,8 +109,7 @@ default_watchlist = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "MBM
 
 watchlist_input = st.text_area(
     "Edit Daftar Saham (pisahkan dengan koma):", 
-    value=", ".join(default_watchlist),
-    help="Contoh: BBCA.JK, BBRI.JK, MBMA.JK"
+    value=", ".join(default_watchlist)
 )
 
 watchlist = [s.strip().upper() for s in watchlist_input.split(",") if s.strip()]
@@ -100,19 +118,19 @@ if watchlist:
     watchlist_data = []
     for ticker in watchlist:
         try:
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period="5d")
-            if not hist.empty:
-                latest_price = hist['Close'].iloc[-1]
-                prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else latest_price
-                change = latest_price - prev_price
-                pct_change = (change / prev_price) * 100 if prev_price != 0 else 0
+            s_obj = yf.Ticker(ticker)
+            df_hist = s_obj.history(period="5d")
+            if not df_hist.empty:
+                l_price = df_hist['Close'].iloc[-1]
+                p_price = df_hist['Close'].iloc[-2] if len(df_hist) > 1 else l_price
+                chg = l_price - p_price
+                pct_chg = (chg / p_price) * 100 if p_price != 0 else 0
                 
                 watchlist_data.append({
                     "Kode Saham": ticker,
-                    "Harga Terakhir (Rp)": round(latest_price, 2),
-                    "Perubahan": round(change, 2),
-                    "Perubahan (%)": round(pct_change, 2)
+                    "Harga Terakhir (Rp)": round(l_price, 2),
+                    "Perubahan": round(chg, 2),
+                    "Perubahan (%)": round(pct_chg, 2)
                 })
         except Exception:
             continue
