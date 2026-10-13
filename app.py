@@ -13,21 +13,37 @@ st.subheader("🔍 Detail & Grafik Pergerakan Saham")
 default_ticker = "BBCA.JK"
 ticker_symbol = st.text_input("Masukkan Kode Saham untuk melihat grafik detail:", value=default_ticker)
 
+# Pilihan rentang waktu untuk grafik (termasuk lebih dari 3 tahun)
+time_period = st.selectbox(
+    "Pilih Rentang Waktu Grafik:",
+    options=["1mo", "6mo", "1y", "3y", "5y", "max"],
+    format_func=lambda x: {
+        "1mo": "1 Bulan",
+        "6mo": "6 Bulan",
+        "1y": "1 Tahun",
+        "3y": "3 Tahun",
+        "5y": "5 Tahun",
+        "max": "Maksimum / Semua Data"
+    }[x],
+    index=2 # Default ke 1 Tahun (bisa diubah sesuai selera)
+)
+
 if ticker_symbol:
     try:
         stock = yf.Ticker(ticker_symbol.strip().upper())
-        hist = stock.history(period="1mo")
+        # Mengambil data historis berdasarkan pilihan rentang waktu
+        hist = stock.history(period=time_period)
         
         if not hist.empty:
             latest_price = hist['Close'].iloc[-1]
-            prev_price = hist['Close'].iloc[-2]
+            prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else latest_price
             price_change = latest_price - prev_price
-            percent_change = (price_change / prev_price) * 100
+            percent_change = (price_change / prev_price) * 100 if prev_price != 0 else 0
             
             col1, col2 = st.columns(2)
             col1.metric("Harga Terakhir", f"Rp {latest_price:,.2f}", f"{price_change:+,.2f} ({percent_change:+.2f}%)")
             
-            st.write(f"### Grafik Harga 1 Bulan: {ticker_symbol.upper()}")
+            st.write(f"### Grafik Harga ({time_period.upper()}): {ticker_symbol.upper()}")
             st.line_chart(hist['Close'])
         else:
             st.warning("⚠️ Data untuk kode saham tersebut tidak ditemukan.")
