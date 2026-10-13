@@ -8,12 +8,12 @@ st.set_page_config(page_title="Pantau Saham Emiten", page_icon="📈", layout="c
 st.title("📈 Aplikasi Pemantau Emiten Saham")
 st.write("Pantau pergerakan harga saham emiten pilihan Anda secara langsung.")
 
-# --- BAGIAN 1: DETAIL SAHAM & GRAFIK (DI ATAS) ---
-st.subheader("🔍 Detail & Grafik Pergerakan Saham")
+# --- BAGIAN 1: DETAIL SAHAM, GRAFIK & REKOMENDASI (DI ATAS) ---
+st.subheader("🔍 Detail, Grafik & Analisis Saham")
 default_ticker = "BBCA.JK"
 ticker_symbol = st.text_input("Masukkan Kode Saham untuk melihat grafik detail:", value=default_ticker)
 
-# Pilihan rentang waktu untuk grafik (termasuk lebih dari 3 tahun)
+# Pilihan rentang waktu untuk grafik
 time_period = st.selectbox(
     "Pilih Rentang Waktu Grafik:",
     options=["1mo", "6mo", "1y", "3y", "5y", "max"],
@@ -25,13 +25,12 @@ time_period = st.selectbox(
         "5y": "5 Tahun",
         "max": "Maksimum / Semua Data"
     }[x],
-    index=2 # Default ke 1 Tahun (bisa diubah sesuai selera)
+    index=2
 )
 
 if ticker_symbol:
     try:
         stock = yf.Ticker(ticker_symbol.strip().upper())
-        # Mengambil data historis berdasarkan pilihan rentang waktu
         hist = stock.history(period=time_period)
         
         if not hist.empty:
@@ -45,6 +44,37 @@ if ticker_symbol:
             
             st.write(f"### Grafik Harga ({time_period.upper()}): {ticker_symbol.upper()}")
             st.line_chart(hist['Close'])
+            
+            # --- FITUR REKOMENDASI OTOMATIS (BUY / SELL / HOLD) ---
+            st.write("### 🤖 Indikator & Rekomendasi Otomatis")
+            
+            # Menghitung Moving Average 20 hari dan 50 hari untuk sinyal tren
+            if len(hist) >= 50:
+                hist['MA20'] = hist['Close'].rolling(window=20).mean()
+                hist['MA50'] = hist['Close'].rolling(window=50).mean()
+                
+                ma20_latest = hist['MA20'].iloc[-1]
+                ma50_latest = hist['MA50'].iloc[-1]
+                
+                # Logika Sinyal Sederhana Berdasarkan Tren MA & Posisi Harga
+                signal = "HOLD"
+                signal_color = "orange"
+                reason = "Harga bergerak sideways atau dalam fase konsolidasi."
+                
+                if latest_price > ma20_latest and ma20_latest > ma50_latest:
+                    signal = "STRONG BUY / BUY"
+                    signal_color = "green"
+                    reason = "Tren Bullish: Harga berada di atas rata-rata pergerakan 20 dan 50 hari."
+                elif latest_price < ma20_latest and ma20_latest < ma50_latest:
+                    signal = "STRONG SELL / SELL"
+                    signal_color = "red"
+                    reason = "Tren Bearish: Harga berada di bawah rata-rata pergerakan 20 dan 50 hari."
+                
+                st.markdown(f"**Rekomendasi Teknis:** <span style='color:{signal_color}; font-size:20px; font-weight:bold;'>{signal}</span>", unsafe_allow_html=True)
+                st.info(f"💡 **Analisis:** {reason} (MA20: Rp {ma20_latest:,.2f} | MA50: Rp {ma50_latest:,.2f})")
+            else:
+                st.warning("⚠️ Data historis kurang dari 50 hari untuk menghitung indikator rekomendasi secara akurat.")
+                
         else:
             st.warning("⚠️ Data untuk kode saham tersebut tidak ditemukan.")
     except Exception as e:
@@ -56,7 +86,6 @@ st.divider()
 st.subheader("📋 Daftar Pantau (Watchlist)")
 st.write("Daftar emiten pilihan yang dipantau secara berkala:")
 
-# Daftar default saham bursa Indonesia
 default_watchlist = ["BBCA.JK", "BBRI.JK", "BMRI.JK", "ASII.JK", "TLKM.JK", "MBMA.JK", "POLA.JK", "ESTI.JK"]
 
 watchlist_input = st.text_area(
@@ -90,7 +119,6 @@ if watchlist:
     
     if watchlist_data:
         df_watchlist = pd.DataFrame(watchlist_data)
-        # Menambahkan nomor urut otomatis mulai dari 1 dan menyembunyikan indeks default
         df_watchlist.insert(0, "No", range(1, len(df_watchlist) + 1))
         st.dataframe(df_watchlist, use_container_width=True, hide_index=True)
     else:
